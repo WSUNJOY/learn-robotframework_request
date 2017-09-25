@@ -1,0 +1,19 @@
+*** Settings ***
+Library           RequestsLibrary
+Library           Collections
+Library           String
+Library           OperatingSystem
+
+*** Test Cases ***
+login
+    ${headers}=    Create Dictionary    Content-Type=application/x-www-form-unlencoded
+    Create Session    rfs    http://www.robotframework.net
+    ${login_info}    Set Variable    {'user_name':'lanzhu','password':'123456'}
+    ${dic_data2}    evaluate    dict(${login_info})
+    ${login}    Post    rfs    /account/login    data=${dic_data2}    headers=${headers}
+    Log Many    ${login.content}
+    Create Session    rfs-article    http://www.robotframework.net    headers=${headers}    cookies=${login.cookies}
+    ${search_info}    Set Variable    {'v_sn': '1.3.0','os': '', 'search': '搜索','pageid': '50'}
+    ${search_info2}    evaluate    dict(${login_info})
+    ${res}    Post    rfs-article    /publish/article    data=${dic_data2}    headers=${headers}
+    Log Many    ${login.content}

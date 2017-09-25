@@ -1,0 +1,362 @@
+*** Settings ***
+Library           RequestsLibrary
+Library           Collections
+Library           String
+Library           OperatingSystem
+
+*** Test Cases ***
+Get Requests
+    [Tags]    get
+    [Template]
+    Create Session    bing    http://www.cn.bing.com
+    Create Session    github    http://api.github.com
+    ${resp}=    Get Request    bing    /
+    log    ${resp}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    ${resp}=    Get Request    github    /users/bulkan
+    Should Be Equal As Strings    ${resp.status_code}    200
+    Dictionary Should Contain Value    ${resp.json()}    Bulkan Evcimen
+    [Teardown]    Delete All Sessions
+
+Get Requests with Url Parameters
+    [Tags]    get
+    Create Session    httpbin    http://httpbin.org
+    ${params}=    Create Dictionary    key=value    key2=value2
+    log    ${params}
+    ${resp}=    Get Request    httpbin    /get    params=${params}
+    log    ${resp}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    ${jsondata}=    To Json    ${resp.content}
+    log    ${resp.content}
+    Should Be Equal    ${jsondata['args']}    ${params}
+    [Teardown]    Delete All Sessions
+
+Get Requests with Json Data
+    [Tags]    get
+    Create Session    httpbin    http://httpbin.org
+    &{data}=    Create Dictionary    latitude=30.496346    longitude=-87.640356
+    ${resq}=    Get Request    httpbin    /get    params=${data}
+    Should Be Equal As Strings    ${resq.status_code}    200
+    ${jsondata}=    To Json    ${resq.content}
+    log    ${jsondata}
+    Should Be Equal As Strings    ${resq.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Get HTTPS & Verify Cert
+    [Tags]    get
+    Create Session    httpbin    https://httpbin.org    verify=True
+    ${resp}=    Get Request    httpbin    /get
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Get HTTPS & Verify Cert with a CA bundle
+    [Tags]    get
+    Create Session    httpbin    https://httpbin.org    verify=${CURDIR}${/}cacert.pem
+    ${resp}=    Get Request    httpbin    /get
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Get With Auth
+    [Tags]    get
+    ${auth}=    Create List    user    passwd
+    Create Session    httpbin    https://httpbin.org    auth=${auth}
+    ${resp}=    Get Request    httpbin    /basic-auth/user/passwd
+    Should Be Equal As Strings    ${resp.status_code}    200
+    Should Be Equal As Strings    ${resp.json()['authenticated']}    True
+    [Teardown]    Delete All Sessions
+
+Get With Digest Auth
+    [Tags]    get
+    ${auth}=    Create List    user    pass
+    Create Digest Session    httpbin    https://httpbin.org    auth=${auth}    debug=3
+    ${resp}=    Get Request    httpbin    /digest-auth/auth/user/pass
+    Should Be Equal As Strings    ${resp.status_code}    200
+    Should Be Equal As Strings    ${resp.json()['authenticated']}    True
+    [Teardown]    Delete All Sessions
+
+Post Request With URL Params
+    [Tags]    post
+    Create Session    httpbin    http://httpbin.org
+    &{params}=    Create Dictionary    key=value    key2=value2
+    ${resp}=    Post Request    httpbin    /post    params=${params}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Post Request With No Data
+    [Tags]    post
+    Create Session    httpbin    http://httpbin.org
+    ${resp}=    Post Request    httpbin    /post
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Put Request With No Data
+    [Tags]    put
+    Create Session    httpbin    http://httpbin.org
+    ${resp}=    Put Request    httpbin    /put
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Post Request With No Dictionary
+    [Tags]    post
+    Create Session    httpbin    http://httpbin.org    debug=3
+    Set Test Variable    ${data}    www
+    ${resp}=    Post Request    httpbin    /post    data=${data}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    Should Contain    ${resp.text}    ${data}
+    [Teardown]    Delete All Sessions
+
+Put Request With No Dictionary
+    [Tags]    put
+    Create Session    httpbin    http://httpbin.org
+    Set Test Variable    ${data}    www
+    ${resp}=    Put Request    httpbin    /put    data=${data}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    Should Contain    ${resp.text}    ${data}
+    [Teardown]    Delete All Sessions
+
+Put Request With URL Params
+    [Tags]    put
+    Create Session    httpbin    http://httpbin.org
+    &{params}=    Create Dictionary    key=value    key2=value2
+    ${resp}=    Put Request    httpbin    /put    params=${params}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Post Requests
+    [Tags]    post
+    Create Session    httpbin    http://httpbin.org
+    &{data}=    Create Dictionary    name=bulkan    username=evcimen
+    &{headers}=    Create Dictionary    Content-Type=application/x-www-form-urlencoded
+    ${resp}=    Post Request    httpbin    /post    data=${data}    headers=${headers}
+    Dictionary Should Contain Value    ${resp.json()['form']}    bulkan
+    Dictionary Should Contain Value    ${resp.json()['form']}    evcimen
+    [Teardown]    Delete All Sessions
+
+Post With Unicode Data
+    [Tags]    post
+    Create Session    httpbin    http://httpbin.org    debug=3
+    &{data}=    Create Dictionary    name=度假村
+    &{headers}=    Create Dictionary    Content-Type=application/x-www-form-urlencoded
+    ${resp}=    Post Request    httpbin    /post    data=${data}    headers=${headers}
+    Dictionary Should Contain Value    ${resp.json()['form']}    度假村
+    [Teardown]    Delete All Sessions
+
+Post Request With Binary Data in Dictionary
+    [Tags]    post
+    Create Session    httpbin    http://httpbin.org    debug=3
+    ${file_data}=    Get Binary File    ${CURDIR}${/}data.json
+    &{data}=    Create Dictionary    name=${file_data.strip()}
+    &{headers}=    Create Dictionary    Content-Type=application/x-www-form-urlencoded
+    ${resp}=    Post Request    httpbin    /post    data=${data}    headers=${headers}
+    Log    ${resp.json()['form']}
+    Should Contain    ${resp.json()['form']['name']}    \u5ea6\u5047\u6751
+    [Teardown]    Delete All Sessions
+
+Post Request With Arbitrary Binary Data
+    [Tags]    post
+    Create Session    httpbin    http://httpbin.org    debug=3
+    ${data}=    Get Binary File    ${CURDIR}${/}randombytes.bin
+    &{headers}=    Create Dictionary    Content-Type=application/octet-stream    Accept=application/octet-stream
+    ${resp}=    Post Request    httpbin    /post    data=${data}    headers=${headers}
+    # TODO Compare binaries. Content is json with base64 encoded data
+    LOG    "SUCCESS"
+    [Teardown]    Delete All Sessions
+
+Post Request With File
+    [Tags]    post
+    Create Session    httpbin    http://httpbin.org
+    ${file_data}=    Get Binary File    ${CURDIR}${/}data.json
+    &{files}=    Create Dictionary    file=${file_data}
+    ${resp}=    Post Request    httpbin    /post    files=${files}
+    ${file}=    To Json    ${resp.json()['files']['file']}
+    Dictionary Should Contain Key    ${file}    one
+    Dictionary Should Contain Key    ${file}    two
+    [Teardown]    Delete All Sessions
+
+Post Request With Data and File
+    [Tags]    post
+    Create Session    httpbin    http://httpbin.org
+    &{data}=    Create Dictionary    name=mallikarjunarao    username=kosuri
+    Create File    foobar.txt    content=foobar
+    ${file_data}=    Get File    foobar.txt
+    &{files}=    Create Dictionary    file=${file_data}
+    ${resp}=    Post Request    httpbin    /post    files=${files}    data=${data}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Put Request
+    [Tags]    put
+    Create Session    httpbin    http://httpbin.org
+    &{data}=    Create Dictionary    name=bulkan    username=evcimen
+    &{headers}=    Create Dictionary    Content-Type=application/x-www-form-urlencoded
+    ${resp}=    Put Request    httpbin    /put    data=${data}    headers=${headers}
+    log    ${resp.json()['form']}
+    Dictionary Should Contain Key    ${resp.json()['form']}    bulkan
+    Dictionary Should Contain Key    ${resp.json()['form']}    evcimen
+    [Teardown]    Delete All Sessions
+
+Head Request
+    [Tags]    head
+    Create Session    httpbin    http://httpbin.org
+    ${resp}=    Head Request    httpbin    /headers
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Options Request
+    [Tags]    options
+    Create Session    httpbin    http://httpbin.org
+    ${resp}=    Options Request    httpbin    /headers
+    Should Be Equal As Strings    ${resp.status_code}    200
+    Dictionary Should Contain Key    ${resp.headers}    allow
+    log    ${resp.headers}
+    [Teardown]    Delete All Sessions
+
+Delete Request With URL Params
+    [Tags]    Delete
+    Create Session    httpbin    http://httpbin.org
+    &{params}=    Create Dictionary    key=value    key2=value2
+    ${resp}=    Delete Request    httpbin    /delete    params=${params}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Delete Request With no Data
+    [Tags]    Delete
+    Create Session    httpbin    http://httpbin.org
+    ${resp}=    Delete Request    httpbin    /delete
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Delete Request with Data
+    [Tags]    put
+    Create Session    httpbin    http://httpbin.org    debug=3
+    &{data}=    Create Dictionary    name=bulkan    username=evcimen
+    ${resp}=    Delete Request    httpbin    /delete    data=${data}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    log    ${resp.content}
+    [Teardown]    Delete All Sessions
+
+Patch Request
+    [Tags]    patch
+    Create Session    httpbin    http://httpbin.org
+    &{data}=    Create Dictionary    name=bulkan    username=evcimen
+    &{headers}=    Create Dictionary    Content-Type=application/x-www-form-urlencoded
+    ${resp}=    Patch Request    httpbin    /patch    data=${data}    headers=${headers}
+    log    ${resp.json()['form']}
+    Dictionary Should Contain Key    ${resp.json()['form']}    bulkan
+    Dictionary Should Contain Key    ${resp.json()['form']}    evcimen
+    [Teardown]    Delete All Sessions
+
+Get Request with Redirection
+    [Tags]    get
+    Create Session    httpbin    http://httpbin.org    debug=3
+    ${resp}=    Get Request    httpbin    /redirect/1
+    Should Be Equal As Strings    ${resp.status_code}    200
+    ${resp}=    Get Request    httpbin    /redirect/1    allow_redirects=${true}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Get Request without Redirection
+    [Tags]    get
+    Create Session    httpbin    http://httpbin.org
+    ${resp}=    Get Request    httpbin    /redirect/1    allow_redirects=${false}
+    ${status}=    Convert To String    ${resp.status_code}
+    Should Start With    ${status}    30
+    [Teardown]    Delete All Sessions
+
+Options Request with Redirection
+    [Tags]    options
+    Create Session    httpbin    http://httpbin.org
+    ${resp}=    Options Request    httpbin    /redirect/1
+    Should Be Equal As Strings    ${resp.status_code}    200
+    ${resp}=    Options Request    httpbin    /redirect/1    allow_redirects=${true}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Head Request with Redirection
+    [Tags]    head
+    Create Session    httpbin    http://httpbin.org
+    ${resp}=    Head Request    httpbin    /redirect/1    allow_redirects=${true}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Head Request without Redirection
+    [Tags]    head
+    Create Session    httpbin    http://httpbin.org
+    ${resp}=    Head Request    httpbin    /redirect/1
+    ${status}=    Convert To String    ${resp.status_code}
+    Should Start With    ${status}    30
+    ${resp}=    Head Request    httpbin    /redirect/1    allow_redirects=${false}
+    ${status}=    Convert To String    ${resp.status_code}
+    Should Start With    ${status}    30
+    [Teardown]    Delete All Sessions
+
+Post Request with Redirection
+    [Tags]    post
+    Create Session    jigsaw    http://jigsaw.w3.org
+    ${resp}=    Post Request    jigsaw    /HTTP/300/302.html
+    Should Be Equal As Strings    ${resp.status_code}    200
+    ${resp}=    Post Request    jigsaw    /HTTP/300/302.html    allow_redirects=${true}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Post Request without Redirection
+    [Tags]    post
+    Create Session    jigsaw    http://jigsaw.w3.org    debug=3
+    ${resp}=    Post Request    jigsaw    /HTTP/300/302.html    allow_redirects=${false}
+    ${status}=    Convert To String    ${resp.status_code}
+    Should Start With    ${status}    30
+    [Teardown]    Delete All Sessions
+
+Put Request with Redirection
+    [Tags]    put
+    Create Session    jigsaw    http://jigsaw.w3.org
+    ${resp}=    Put Request    jigsaw    /HTTP/300/302.html
+    Should Be Equal As Strings    ${resp.status_code}    200
+    ${resp}=    Put Request    jigsaw    /HTTP/300/302.html    allow_redirects=${true}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    [Teardown]    Delete All Sessions
+
+Put Request without Redirection
+    [Tags]    put
+    Create Session    jigsaw    http://jigsaw.w3.org    debug=3
+    ${resp}=    Put Request    jigsaw    /HTTP/300/302.html    allow_redirects=${false}
+    ${status}=    Convert To String    ${resp.status_code}
+    Should Start With    ${status}    30
+    [Teardown]    Delete All Sessions
+
+Do Not Pretty Print a JSON object
+    [Tags]    json
+    Create Session    httpbin    http://httpbin.org
+    &{var}=    Create Dictionary    key_one=true    key_two=this is a test string
+    ${resp}=    Get Request    httpbin    /get    params=${var}
+    Set Suite Variable    ${resp}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    ${jsondata}=    To Json    ${resp.content}
+    Dictionaries Should Be Equal    ${jsondata['args']}    ${var}
+    [Teardown]    Delete All Sessions
+
+Pretty Print a JSON object
+    [Tags]    json
+    Create Session    httpbin    http://httpbin.org
+    &{var}=    Create Dictionary    key_one=true    key_two=this is a test string
+    ${resp}=    Get Request    httpbin    /get    params=${var}
+    Log    ${resp}
+    ${output}=    To Json    ${resp.content}    pretty_print=True
+    Log    ${output}
+    Should Contain    ${output}    "key_one": "true"
+    Should Contain    ${output}    "key_two": "this is a test string"
+    Should Not Contain    ${output}    {u'key_two': u'this is a test string', u'key_one': u'true'}
+    [Teardown]    Delete All Sessions
+
+Set Pretty Print to non-Boolean value
+    [Tags]    json
+    Create Session    httpbin    http://httpbin.org
+    &{var}=    Create Dictionary    key_one=true    key_two=this is a test string
+    ${resp}=    Get Request    httpbin    /get    params=${var}
+    Log    ${resp}
+    ${output}=    To Json    ${resp.content}    pretty_print="Hello"
+    Log    ${output}
+    Should Contain    ${output}    "key_one": "true"
+    Should Contain    ${output}    "key_two": "this is a test string"
+    Should Not Contain    ${output}    {u'key_two': u'this is a test string', u'key_one': u'true'}
+    [Teardown]    Delete All Sessions
